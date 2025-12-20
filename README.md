@@ -29,6 +29,7 @@
 
 ### 📊 多数据源支持
 - **Yahoo Finance**: 免费无限制，实时数据（推荐）
+- **Financial Modeling Prep**: 深度基本面数据（250次/天免费）
 - **Alpha Vantage**: 备选数据源（有API限制）
 - **灵活切换**: 前端界面动态选择数据源
 - **全面覆盖**: 支持所有美国上市股票
@@ -68,14 +69,15 @@
 
 在开始之前，请确保你已安装：
 
-- **Node.js** 16 或更高版本 ([下载](https://nodejs.org/))
+- **Node.js** 20+ LTS 或 24+ ([下载](https://nodejs.org/))
 - **Yarn** 包管理器 ([安装](https://yarnpkg.com/getting-started/install))
-- **Alpha Vantage API Key** - 必需 ([免费获取](https://www.alphavantage.co/support/#api-key))
 
-**可选 - 根据选择的 AI 提供商**:
-- **Claude API Key** - 如果使用 Claude ([获取](https://console.anthropic.com/))
-- **OpenAI API Key** - 如果使用 GPT-4 ([获取](https://platform.openai.com/api-keys))
-- **无需 API Key** - 如果使用 rule-based 分析
+**可选 - 根据你的选择**:
+- **Claude API Key** - 如果使用 Claude AI ([获取](https://console.anthropic.com/))
+- **OpenAI API Key** - 如果使用 GPT ([获取](https://platform.openai.com/api-keys))
+- **Alpha Vantage API Key** - 如果使用该数据源 ([获取](https://www.alphavantage.co/support/#api-key))
+- **FMP API Key** - 如果使用 Financial Modeling Prep ([获取](https://financialmodelingprep.com/developer/docs/))
+- **无需 API Key** - 如果使用规则分析 + Yahoo Finance
 
 ### 🔧 安装步骤
 
@@ -92,34 +94,200 @@ yarn install
 cp .env.example .env
 ```
 
-编辑 `backend/.env` 文件，配置 AI 分析提供商：
+编辑 `backend/.env` 文件配置。**你只需要配置你计划使用的服务**：
 
 ```env
-# AI 分析提供商 (可选: claude, openai, rule-based)
-# 默认为 rule-based（无需 API 密钥）
+# 数据源 (yahoo-finance, fmp, 或 alpha-vantage)
+# 默认: yahoo-finance (无需 API 密钥)
+DATA_SOURCE=yahoo-finance
+
+# AI 分析提供商 (claude, openai, 或 rule-based)
+# 默认: rule-based (无需 API 密钥)
 AI_PROVIDER=rule-based
+
+# ========== AI 提供商 API 密钥 (可选) ==========
+# 只需配置你想用的 AI 提供商
 
 # Claude API 密钥 (仅当 AI_PROVIDER=claude 时需要)
 ANTHROPIC_API_KEY=sk-ant-xxxxx
 
 # OpenAI API 密钥 (仅当 AI_PROVIDER=openai 时需要)
-OPENAI_API_KEY=sk-xxxxx
+OPENAI_API_KEY=sk-proj-xxxxx
 
 # OpenAI 模型选择 (可选，默认 gpt-4o)
-# 支持: gpt-4o, gpt-4-turbo, gpt-4, gpt-3.5-turbo 或更新模型
+# 支持: gpt-4o, gpt-5, gpt-4-turbo, gpt-4, gpt-3.5-turbo
 OPENAI_MODEL=gpt-4o
 
-# Alpha Vantage API 密钥 (必需 - 用于获取股票数据)
-ALPHA_VANTAGE_API_KEY=your_key_here
+# ========== 数据源 API 密钥 (可选) ==========
+# Yahoo Finance: 无需 API 密钥 (推荐)
+# 只在使用 FMP 或 Alpha Vantage 时配置
+
+# Financial Modeling Prep API 密钥 (仅当 DATA_SOURCE=fmp 时需要)
+FMP_API_KEY=your_fmp_key_here
+
+# Alpha Vantage API 密钥 (仅当 DATA_SOURCE=alpha-vantage 时需要)
+ALPHA_VANTAGE_API_KEY=your_av_key_here
 
 # 服务器端口 (可选，默认 3001)
 PORT=3001
 ```
 
-**AI 提供商选择**:
-- **`rule-based`** (推荐新手): 纯技术指标分析，无需 AI API 密钥，完全免费
-- **`claude`**: 使用 Claude AI 生成深度分析报告（需要 Anthropic API 密钥）
-- **`openai`**: 使用 GPT-4 生成深度分析报告（需要 OpenAI API 密钥）
+---
+
+### 🔑 API 密钥获取指南
+
+#### **AI 分析提供商** (可选 - 三选一)
+
+<details>
+<summary><strong>方案 1: 规则分析 (无需 API 密钥)</strong> ✅ 推荐新手</summary>
+
+- **设置**: 无需配置
+- **费用**: 完全免费
+- **功能**: 基于 RSI、MACD、均线、布林带的技术分析
+- **优点**: 无 API 费用，即时结果
+- **缺点**: 比 AI 分析深度略浅
+
+</details>
+
+<details>
+<summary><strong>方案 2: Claude AI</strong> 🤖 专业分析</summary>
+
+**步骤 1: 获取 API 密钥**
+1. 访问 [Anthropic 控制台](https://console.anthropic.com/)
+2. 注册或登录
+3. 进入 "API Keys" 部分
+4. 点击 "Create Key"
+5. 复制密钥 (以 `sk-ant-` 开头)
+
+**步骤 2: 配置**
+```env
+AI_PROVIDER=claude
+ANTHROPIC_API_KEY=sk-ant-api03-xxxxx
+```
+
+**费用**: 每次分析约 ￥0.02-0.10 ([定价](https://www.anthropic.com/pricing))
+
+</details>
+
+<details>
+<summary><strong>方案 3: OpenAI GPT</strong> 🚀 高级 AI</summary>
+
+**步骤 1: 获取 API 密钥**
+1. 访问 [OpenAI 平台](https://platform.openai.com/api-keys)
+2. 注册或登录
+3. 点击 "Create new secret key"
+4. 复制密钥 (以 `sk-proj-` 或 `sk-` 开头)
+5. **重要**: 在[账单页面](https://platform.openai.com/account/billing)添加余额
+
+**步骤 2: 配置**
+```env
+AI_PROVIDER=openai
+OPENAI_API_KEY=sk-proj-xxxxx
+OPENAI_MODEL=gpt-4o
+```
+
+**费用**: 每次分析约 ￥0.03-0.14 ([定价](https://openai.com/pricing))
+
+**注意**: ChatGPT Plus 订阅 ≠ API 访问。API 计费独立。
+
+</details>
+
+---
+
+#### **数据源提供商** (三选一)
+
+<details>
+<summary><strong>方案 1: Yahoo Finance (无需 API 密钥)</strong> ✅ 推荐</summary>
+
+- **设置**: 无需配置
+- **费用**: 完全免费
+- **限制**: 无限制请求
+- **数据**: 实时价格、历史数据、基础基本面
+- **优点**: 无需设置，无限制，数据全面
+- **缺点**: 无
+
+```env
+DATA_SOURCE=yahoo-finance
+# 无需 API 密钥
+```
+
+</details>
+
+<details>
+<summary><strong>方案 2: Financial Modeling Prep (FMP)</strong> 💼 深度基本面</summary>
+
+**步骤 1: 获取 API 密钥**
+1. 访问 [FMP 开发者门户](https://financialmodelingprep.com/developer/docs/)
+2. 点击 "Get your Free API Key"
+3. 用邮箱注册
+4. 验证邮箱并登录
+5. 在控制台找到你的 API 密钥
+
+**步骤 2: 配置**
+```env
+DATA_SOURCE=fmp
+FMP_API_KEY=your_actual_fmp_key_here
+```
+
+**免费版限制**:
+- 每天 250 次请求
+- 完整基本面数据 (财务比率、指标、现金流)
+- 实时报价
+
+**升级**: 14-49 美元/月可获更高限制
+
+</details>
+
+<details>
+<summary><strong>方案 3: Alpha Vantage</strong> 📈 备用数据源</summary>
+
+**步骤 1: 获取 API 密钥**
+1. 访问 [Alpha Vantage 支持](https://www.alphavantage.co/support/#api-key)
+2. 输入邮箱并点击 "GET FREE API KEY"
+3. 检查邮箱获取 API 密钥
+4. 复制密钥
+
+**步骤 2: 配置**
+```env
+DATA_SOURCE=alpha-vantage
+ALPHA_VANTAGE_API_KEY=YOUR_KEY_HERE
+```
+
+**免费版限制**:
+- 每分钟 5 次请求
+- 每天 100 次请求
+- 包含技术指标
+
+**缺点**: 无基本面数据，限制较严格
+
+</details>
+
+---
+
+### 💡 推荐配置方案
+
+**测试学习用** (100% 免费):
+```env
+DATA_SOURCE=yahoo-finance
+AI_PROVIDER=rule-based
+# 无需任何 API 密钥
+```
+
+**专业使用** (质量最佳):
+```env
+DATA_SOURCE=yahoo-finance  # 或 fmp 获取更深度基本面
+AI_PROVIDER=openai
+OPENAI_API_KEY=sk-proj-xxxxx
+OPENAI_MODEL=gpt-4o
+```
+
+**日常研究** (预算友好):
+```env
+DATA_SOURCE=fmp
+FMP_API_KEY=xxxxx
+AI_PROVIDER=rule-based
+# 每天 250 次免费深度分析
+```
 
 #### 2️⃣ 前端设置
 

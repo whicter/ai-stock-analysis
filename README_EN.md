@@ -78,10 +78,11 @@ Before you begin, ensure you have:
 - **Node.js** 20+ LTS or 24+ ([Download](https://nodejs.org/))
 - **Yarn** package manager ([Install](https://yarnpkg.com/getting-started/install))
 
-**Optional - Based on Your AI Provider Choice**:
-- **Claude API Key** - If using Claude ([Get Key](https://console.anthropic.com/))
+**Optional - Based on Your Choices**:
+- **Claude API Key** - If using Claude AI ([Get Key](https://console.anthropic.com/))
 - **OpenAI API Key** - If using GPT ([Get Key](https://platform.openai.com/api-keys))
 - **Alpha Vantage API Key** - If using as data source ([Get Key](https://www.alphavantage.co/support/#api-key))
+- **FMP API Key** - If using Financial Modeling Prep ([Get Key](https://financialmodelingprep.com/developer/docs/))
 - **No API Key Needed** - If using rule-based analysis with Yahoo Finance
 
 ### 🔧 Installation Steps
@@ -99,15 +100,19 @@ yarn install
 cp .env.example .env
 ```
 
-Edit `backend/.env` file to configure your AI providers:
+Edit `backend/.env` file to configure your settings. **You only need to configure the services you plan to use**:
 
 ```env
-# Data Source (yahoo-finance or alpha-vantage)
+# Data Source (yahoo-finance, fmp, or alpha-vantage)
+# Default: yahoo-finance (no API key needed)
 DATA_SOURCE=yahoo-finance
 
 # AI Analysis Provider (claude, openai, or rule-based)
 # Default: rule-based (no API key required)
 AI_PROVIDER=rule-based
+
+# ========== AI Provider API Keys (Optional) ==========
+# Only configure the AI provider you want to use
 
 # Claude API Key (only if AI_PROVIDER=claude)
 ANTHROPIC_API_KEY=sk-ant-xxxxx
@@ -119,21 +124,176 @@ OPENAI_API_KEY=sk-proj-xxxxx
 # Supported: gpt-4o, gpt-5, gpt-4-turbo, gpt-4, gpt-3.5-turbo
 OPENAI_MODEL=gpt-4o
 
-# Alpha Vantage API Key (optional, only if using as data source)
-ALPHA_VANTAGE_API_KEY=your_key_here
+# ========== Data Source API Keys (Optional) ==========
+# Yahoo Finance: No API key needed (recommended)
+# Only configure if using FMP or Alpha Vantage
+
+# Financial Modeling Prep API Key (only if DATA_SOURCE=fmp)
+FMP_API_KEY=your_fmp_key_here
+
+# Alpha Vantage API Key (only if DATA_SOURCE=alpha-vantage)
+ALPHA_VANTAGE_API_KEY=your_av_key_here
 
 # Server Port (optional, default: 3001)
 PORT=3001
 ```
 
-**AI Provider Selection**:
-- **`rule-based`** (Recommended for beginners): Pure technical analysis, no AI API key needed, completely free
-- **`claude`**: Uses Claude AI for deep analysis reports (requires Anthropic API key)
-- **`openai`**: Uses GPT models for deep analysis reports (requires OpenAI API key)
+---
 
-**Data Source Selection**:
-- **`yahoo-finance`** (Recommended): Free, unlimited, no API key needed
-- **`alpha-vantage`**: Alternative source with API limits (5/min, 100/day)
+### 🔑 API Key Setup Guide
+
+#### **AI Analysis Providers** (Optional - Choose One)
+
+<details>
+<summary><strong>Option 1: Rule-Based Analysis (No API Key)</strong> ✅ Recommended for Beginners</summary>
+
+- **Setup**: No configuration needed
+- **Cost**: Completely free
+- **Features**: Technical analysis based on RSI, MACD, moving averages, Bollinger Bands
+- **Pros**: No API costs, instant results
+- **Cons**: Less detailed than AI analysis
+
+</details>
+
+<details>
+<summary><strong>Option 2: Claude AI</strong> 🤖 Professional Analysis</summary>
+
+**Step 1: Get API Key**
+1. Visit [Anthropic Console](https://console.anthropic.com/)
+2. Sign up or log in
+3. Go to "API Keys" section
+4. Click "Create Key"
+5. Copy the key (starts with `sk-ant-`)
+
+**Step 2: Configure**
+```env
+AI_PROVIDER=claude
+ANTHROPIC_API_KEY=sk-ant-api03-xxxxx
+```
+
+**Cost**: ~$0.003-$0.015 per analysis ([Pricing](https://www.anthropic.com/pricing))
+
+</details>
+
+<details>
+<summary><strong>Option 3: OpenAI GPT</strong> 🚀 Advanced AI</summary>
+
+**Step 1: Get API Key**
+1. Visit [OpenAI Platform](https://platform.openai.com/api-keys)
+2. Sign up or log in
+3. Click "Create new secret key"
+4. Copy the key (starts with `sk-proj-` or `sk-`)
+5. **Important**: Add credits to your account at [Billing](https://platform.openai.com/account/billing)
+
+**Step 2: Configure**
+```env
+AI_PROVIDER=openai
+OPENAI_API_KEY=sk-proj-xxxxx
+OPENAI_MODEL=gpt-4o
+```
+
+**Cost**: ~$0.005-$0.02 per analysis ([Pricing](https://openai.com/pricing))
+
+**Note**: ChatGPT Plus subscription ≠ API access. API billing is separate.
+
+</details>
+
+---
+
+#### **Data Source Providers** (Choose One)
+
+<details>
+<summary><strong>Option 1: Yahoo Finance (No API Key)</strong> ✅ Recommended</summary>
+
+- **Setup**: No configuration needed
+- **Cost**: Completely free
+- **Limits**: Unlimited requests
+- **Data**: Real-time prices, historical data, basic fundamentals
+- **Pros**: No setup, no limits, comprehensive data
+- **Cons**: None
+
+```env
+DATA_SOURCE=yahoo-finance
+# No API key needed
+```
+
+</details>
+
+<details>
+<summary><strong>Option 2: Financial Modeling Prep (FMP)</strong> 💼 Deep Fundamentals</summary>
+
+**Step 1: Get API Key**
+1. Visit [FMP Developer Portal](https://financialmodelingprep.com/developer/docs/)
+2. Click "Get your Free API Key"
+3. Sign up with email
+4. Verify email and log in
+5. Find your API key in the dashboard
+
+**Step 2: Configure**
+```env
+DATA_SOURCE=fmp
+FMP_API_KEY=your_actual_fmp_key_here
+```
+
+**Free Tier Limits**:
+- 250 requests per day
+- Full fundamental data (ratios, metrics, cash flow)
+- Real-time quotes
+
+**Upgrade**: $14-49/month for higher limits
+
+</details>
+
+<details>
+<summary><strong>Option 3: Alpha Vantage</strong> 📈 Alternative Source</summary>
+
+**Step 1: Get API Key**
+1. Visit [Alpha Vantage Support](https://www.alphavantage.co/support/#api-key)
+2. Enter your email and click "GET FREE API KEY"
+3. Check your email for the API key
+4. Copy the key
+
+**Step 2: Configure**
+```env
+DATA_SOURCE=alpha-vantage
+ALPHA_VANTAGE_API_KEY=YOUR_KEY_HERE
+```
+
+**Free Tier Limits**:
+- 5 requests per minute
+- 100 requests per day
+- Technical indicators included
+
+**Cons**: No fundamental data, strict rate limits
+
+</details>
+
+---
+
+### 💡 Recommended Configurations
+
+**For Testing/Learning** (100% Free):
+```env
+DATA_SOURCE=yahoo-finance
+AI_PROVIDER=rule-based
+# No API keys needed
+```
+
+**For Professional Use** (Best Quality):
+```env
+DATA_SOURCE=yahoo-finance  # or fmp for deeper fundamentals
+AI_PROVIDER=openai
+OPENAI_API_KEY=sk-proj-xxxxx
+OPENAI_MODEL=gpt-4o
+```
+
+**For Daily Research** (Budget-Friendly):
+```env
+DATA_SOURCE=fmp
+FMP_API_KEY=xxxxx
+AI_PROVIDER=rule-based
+# 250 free analyses per day with deep fundamentals
+```
 
 #### 2️⃣ Frontend Setup
 

@@ -120,6 +120,36 @@
   margin-bottom: 0;
 }
 
+/* 缩进样式 */
+.report-list-item.indented,
+.report-paragraph.indented {
+  margin-left: 3rem;
+}
+
+/* Subheading styling (bold lines like **观点一：...**) */
+.report-subheading {
+  font-weight: 700;
+  color: #60A5FA;
+  margin: 1rem 0 0.5rem 0;
+  font-size: 1rem;
+}
+
+.report-subheading:first-child {
+  margin-top: 0;
+}
+
+/* Section subtitle styling (lines ending with : or ：) */
+.report-section-subtitle {
+  font-weight: 600;
+  color: #FFD700;
+  margin: 1.25rem 0 0.75rem 0;
+  font-size: 0.9375rem;
+}
+
+.report-section-subtitle:first-child {
+  margin-top: 0;
+}
+
 @media (max-width: 768px) {
   .analysis-report {
     padding: 1.5rem;
@@ -132,5 +162,10 @@
 
   .report-section {
     padding: 1.25rem;
+  }
+
+  .report-list-item.indented,
+  .report-paragraph.indented {
+    margin-left: 2rem;
   }
 }

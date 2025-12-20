@@ -1,8 +1,10 @@
 import { getStockQuote, getStockTimeSeries, calculateIndicators } from './alphaVantage';
 import { getYahooStockData } from './yahooFinance';
+import { getFMPStockData } from './fmpService';
 import { generateStockAnalysis, AnalysisResult } from './claudeService';
 import { generateStockAnalysisWithOpenAI } from './openaiService';
 import { generateRuleBasedAnalysis } from './ruleBasedService';
+import { calculateFibonacciLevels } from './fibonacciService';
 
 export async function analyzeStock(symbol: string, provider?: string, dataSource?: string, model?: string): Promise<AnalysisResult> {
   try {
@@ -18,6 +20,13 @@ export async function analyzeStock(symbol: string, provider?: string, dataSource
       timeSeries = yahooData.timeSeries;
       indicators = yahooData.indicators;
       fundamentals = yahooData.fundamentals;
+    } else if (source === 'fmp') {
+      // Financial Modeling Prep
+      const fmpData = await getFMPStockData(symbol);
+      quote = fmpData.quote;
+      timeSeries = fmpData.timeSeries;
+      indicators = fmpData.indicators;
+      fundamentals = fmpData.fundamentals;
     } else {
       // Alpha Vantage
       [quote, timeSeries] = await Promise.all([
@@ -27,6 +36,32 @@ export async function analyzeStock(symbol: string, provider?: string, dataSource
       console.log(`Calculating technical indicators...`);
       indicators = calculateIndicators(timeSeries);
       fundamentals = {}; // No fundamental data for Alpha Vantage
+    }
+
+    // Pre-calculate sentiment to determine Fibonacci levels
+    // Using simple technical indicators for initial sentiment determination
+    const currentPrice = quote.price;
+    const rsi = indicators.rsi.filter(v => !isNaN(v)).slice(-1)[0] || 50;
+    const latestMACD = indicators.macd.macd.filter(v => !isNaN(v)).slice(-1)[0] || 0;
+    const sma20 = indicators.sma20.filter(v => !isNaN(v)).slice(-1)[0] || currentPrice;
+    const sma50 = indicators.sma50.filter(v => !isNaN(v)).slice(-1)[0] || currentPrice;
+
+    let preliminarySentiment: 'bullish' | 'bearish' | 'neutral' = 'neutral';
+    if (rsi > 70 || currentPrice < sma20 * 0.95) {
+      preliminarySentiment = 'bearish';
+    } else if (rsi < 30 || currentPrice > sma20 * 1.05) {
+      preliminarySentiment = 'bullish';
+    } else if (currentPrice > sma20 && currentPrice > sma50 && latestMACD > 0) {
+      preliminarySentiment = 'bullish';
+    } else if (currentPrice < sma20 && currentPrice < sma50 && latestMACD < 0) {
+      preliminarySentiment = 'bearish';
+    }
+
+    // Add Fibonacci levels based on preliminary sentiment
+    const fibLevels = calculateFibonacciLevels(timeSeries, preliminarySentiment);
+    if (fibLevels) {
+      indicators.fibonacci = fibLevels;
+      console.log(`Added ${fibLevels.type} Fibonacci levels for ${preliminarySentiment} trend`);
     }
 
     // Get AI provider from parameter or environment variable

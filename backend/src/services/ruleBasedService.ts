@@ -89,6 +89,7 @@ export function generateRuleBasedAnalysis(
         value: rsi,
         label: rsi > 70 ? '超买区域' : rsi < 30 ? '超卖区域' : '中性区域',
       },
+      fibonacci: indicators.fibonacci,
     },
     report: {
       title: `${symbol} 深度投资研报`,

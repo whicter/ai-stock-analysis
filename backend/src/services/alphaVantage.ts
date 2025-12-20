@@ -46,6 +46,14 @@ export interface TechnicalIndicators {
     middle: number[];
     lower: number[];
   };
+  fibonacci?: {
+    type: 'extension' | 'retracement';
+    levels: {
+      level: number;
+      price: number;
+      label: string;
+    }[];
+  };
 }
 
 export async function getStockQuote(symbol: string): Promise<StockQuote> {

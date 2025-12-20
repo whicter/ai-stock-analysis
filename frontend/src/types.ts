@@ -6,6 +6,14 @@ export interface AnalysisResult {
     resistance: { level: number; label: string };
     support: { level: number; label: string };
     momentum: { value: number; label: string };
+    fibonacci?: {
+      type: 'extension' | 'retracement';
+      levels: {
+        level: number;
+        price: number;
+        label: string;
+      }[];
+    };
   };
   report: {
     title: string;

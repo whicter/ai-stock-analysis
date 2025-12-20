@@ -46,38 +46,72 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({ symbol, report }) => {
   };
 
   const formatText = (text: string) => {
-    // Split by newlines and format as list items or paragraphs
-    return text.split('\n').map((line, index) => {
-      const trimmedLine = line.trim();
-      if (!trimmedLine) return null;
+    // Split by newlines and preserve original structure
+    const lines = text.split('\n').filter(line => line.trim());
+    const elements: JSX.Element[] = [];
 
-      // Check if it's a bullet point
-      if (trimmedLine.startsWith('•') || trimmedLine.startsWith('-') || trimmedLine.startsWith('*')) {
+    // Track if we're currently under a subheading
+    let underSubheading = false;
+
+    for (let index = 0; index < lines.length; index++) {
+      const trimmedLine = lines[index].trim();
+      if (!trimmedLine) continue;
+
+      // 检测是否是section子标题（以**开头和结尾的，或者包含**的）
+      const isSubheading = /^\*\*.*\*\*/.test(trimmedLine);
+
+      // 检测是否是section标题（以"："或":"结尾，但不是bullet point）
+      const isSectionTitle = !trimmedLine.startsWith('-') && !trimmedLine.startsWith('•') &&
+                             (trimmedLine.endsWith('：') || trimmedLine.endsWith(':'));
+
+      // Check if it's a bullet point (starts with - or •)
+      if (trimmedLine.startsWith('-') || trimmedLine.startsWith('•')) {
         const content = trimmedLine.substring(1).trim();
-        return (
-          <li key={index} className="report-list-item">
+
+        elements.push(
+          <li key={index} className={`report-list-item ${underSubheading ? 'indented' : ''}`}>
             {parseMarkdown(content)}
           </li>
         );
       }
-
       // Check if it's a numbered list
-      if (/^\d+\./.test(trimmedLine)) {
+      else if (/^\d+\./.test(trimmedLine)) {
         const content = trimmedLine.replace(/^\d+\.\s*/, '');
-        return (
-          <li key={index} className="report-list-item">
+        elements.push(
+          <li key={index} className={`report-list-item ${underSubheading ? 'indented' : ''}`}>
             {parseMarkdown(content)}
           </li>
         );
       }
-
+      // Subheading (bold text line)
+      else if (isSubheading) {
+        underSubheading = true;
+        elements.push(
+          <p key={index} className="report-subheading">
+            {parseMarkdown(trimmedLine)}
+          </p>
+        );
+      }
+      // Section title (ends with : or ：)
+      else if (isSectionTitle) {
+        underSubheading = false; // Reset when we hit a new section title
+        elements.push(
+          <p key={index} className="report-section-subtitle">
+            {parseMarkdown(trimmedLine)}
+          </p>
+        );
+      }
       // Regular paragraph
-      return (
-        <p key={index} className="report-paragraph">
-          {parseMarkdown(trimmedLine)}
-        </p>
-      );
-    });
+      else {
+        elements.push(
+          <p key={index} className={`report-paragraph ${underSubheading ? 'indented' : ''}`}>
+            {parseMarkdown(trimmedLine)}
+          </p>
+        );
+      }
+    }
+
+    return elements;
   };
 
   return (

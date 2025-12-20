@@ -61,34 +61,83 @@ ${fundamentals.fiftyTwoWeekLow ? `- 52周最低: $${fundamentals.fiftyTwoWeekLow
 `;
   }
 
-  const prompt = `你是一位专业的股票分析师。请基于以下数据对股票 ${symbol} 进行全面分析：
+  // Build Fibonacci levels section if available
+  let fibonacciSection = '';
+  if (indicators.fibonacci) {
+    const fibType = indicators.fibonacci.type === 'extension' ? 'Fibonacci扩展位 (多头趋势)' : 'Fibonacci回撤位 (空头趋势)';
+    fibonacciSection = `
+${fibType}:
+${indicators.fibonacci.levels.map(l => `- ${l.label}: $${l.price.toFixed(2)}`).join('\n')}
+`;
+  }
 
+  const prompt = `你是一位资深的股票分析师，拥有20年以上的市场经验。请基于以下数据对股票 ${symbol} 进行深度、全面的专业分析：
+
+===== 实时行情数据 =====
 股票代码: ${symbol}
 当前价格: $${currentPrice.toFixed(2)}
 涨跌幅: ${quote.changePercent.toFixed(2)}%
-最高价: $${quote.high.toFixed(2)}
-最低价: $${quote.low.toFixed(2)}
+今日最高价: $${quote.high.toFixed(2)}
+今日最低价: $${quote.low.toFixed(2)}
 成交量: ${quote.volume.toLocaleString()}
+开盘价: $${quote.open.toFixed(2)}
+昨日收盘: $${quote.previousClose.toFixed(2)}
 
-技术指标:
-- RSI(14): ${rsi.toFixed(2)}
-- MACD: ${latestMACD.toFixed(2)}
-- SMA20: $${sma20.toFixed(2)}
-- SMA50: $${sma50.toFixed(2)}
-- 布林带上轨: $${(indicators.bollingerBands.upper.filter(v => !isNaN(v)).slice(-1)[0] || currentPrice).toFixed(2)}
-- 布林带下轨: $${(indicators.bollingerBands.lower.filter(v => !isNaN(v)).slice(-1)[0] || currentPrice).toFixed(2)}
-${fundamentalSection}
-30日价格走势:
-${recentData.slice(-10).map(d => `${d.date}: $${d.close.toFixed(2)}`).join('\n')}
+===== 技术指标详情 =====
+动量指标:
+- RSI(14): ${rsi.toFixed(2)} ${rsi > 70 ? '(超买区域)' : rsi < 30 ? '(超卖区域)' : '(中性区域)'}
+- MACD: ${latestMACD.toFixed(2)} ${latestMACD > 0 ? '(正值，看涨)' : '(负值，看跌)'}
 
-请提供以下格式的分析报告（用中文）:
+均线系统:
+- SMA20日均线: $${sma20.toFixed(2)} ${currentPrice > sma20 ? '(价格在均线上方)' : '(价格在均线下方)'}
+- SMA50日均线: $${sma50.toFixed(2)} ${currentPrice > sma50 ? '(价格在均线上方)' : '(价格在均线下方)'}
 
-1. 核心观点 (2-3个要点，每个要点包含具体的价格目标或时间框架)
-2. 技术指标分析 (详细分析RSI、MACD、均线系统、布林带等，给出具体的支撑位和阻力位)
-3. 基本面分析 (结合上述基本面数据，深入分析公司估值水平、盈利能力、财务健康度、行业地位等，给出具体的财务指标评价)
-4. 风险提示 (列出3-5个主要风险点)
+布林带:
+- 上轨: $${(indicators.bollingerBands.upper.filter(v => !isNaN(v)).slice(-1)[0] || currentPrice).toFixed(2)}
+- 中轨: $${(indicators.bollingerBands.middle.filter(v => !isNaN(v)).slice(-1)[0] || currentPrice).toFixed(2)}
+- 下轨: $${(indicators.bollingerBands.lower.filter(v => !isNaN(v)).slice(-1)[0] || currentPrice).toFixed(2)}
+${fibonacciSection}${fundamentalSection}
+===== 近期价格走势 =====
+${recentData.slice(-10).map(d => `${d.date}: 收盘$${d.close.toFixed(2)}, 最高$${d.high.toFixed(2)}, 最低$${d.low.toFixed(2)}, 成交量${d.volume.toLocaleString()}`).join('\n')}
 
-请确保分析专业、具体，包含实际的价格水平和时间预期。基本面分析部分请充分利用上述提供的财务数据进行深入分析。`;
+===== 分析要求 =====
+请提供以下格式的深度分析报告（用中文，要求详细、专业、具体）:
+
+1. 核心观点
+   - 提供3-5个核心投资观点
+   - 每个观点必须包含具体的价格目标位、时间框架、概率评估
+   - 说明主要驱动因素和催化剂
+   - 给出明确的操作建议（买入/卖出/持有）及仓位建议
+
+2. 技术指标分析
+   - 深度分析RSI、MACD、均线系统、布林带的当前状态及趋势
+   - 识别并说明关键的支撑位和阻力位（至少3-5个价格点位）
+   - 分析成交量变化及其对价格的影响
+   - 识别技术形态（如头肩顶、双底、三角形等）
+   - 如果有Fibonacci点位，详细说明每个关键点位的意义及交易策略
+   - 给出具体的入场点、止损点、止盈点建议
+
+3. 基本面分析
+   - 深入评估公司估值水平（与行业平均对比，说明是高估还是低估及程度）
+   - 详细分析盈利能力（利润率趋势、与竞争对手对比）
+   - 评估财务健康度（债务水平、现金流状况、偿债能力）
+   - 分析公司在行业中的竞争地位和护城河
+   - 评估增长潜力（营收增长、市场份额、新产品/服务）
+   - 说明股息情况及其可持续性（如适用）
+   - 综合评分（1-10分）并解释评分理由
+
+4. 风险提示
+   - 列出5-8个主要风险点
+   - 每个风险点要说明：风险性质、发生概率、潜在影响程度、应对策略
+   - 区分短期风险和长期风险
+   - 提供风险评级（低/中/高）
+
+请确保分析：
+- 专业且详细，每个部分至少200字
+- 包含具体的数字、价格水平、时间预期、概率评估
+- 充分利用所有提供的技术和基本面数据
+- 提供可操作的投资建议
+- 使用专业术语但保持易懂`;
 
   try {
     // Use passed model, env var, or default to gpt-4o
@@ -100,14 +149,14 @@ ${recentData.slice(-10).map(d => `${d.date}: $${d.close.toFixed(2)}`).join('\n')
       messages: [
         {
           role: 'system',
-          content: '你是一位经验丰富的股票分析师，擅长技术分析和基本面研究。',
+          content: '你是一位经验丰富的股票分析师，拥有20年以上的投资经验，擅长深度技术分析、基本面研究、风险评估和投资策略制定。你的分析报告详实、专业、具有很高的参考价值。',
         },
         {
           role: 'user',
           content: prompt,
         },
       ],
-      max_tokens: 2048,
+      max_tokens: 4096,
       temperature: 0.7,
     });
 
@@ -171,6 +220,7 @@ ${recentData.slice(-10).map(d => `${d.date}: $${d.close.toFixed(2)}`).join('\n')
           value: rsi,
           label: rsi > 70 ? '超买区域' : rsi < 30 ? '超卖区域' : '中性区域',
         },
+        fibonacci: indicators.fibonacci,
       },
       report: {
         title: `${symbol} 深度投资研报`,

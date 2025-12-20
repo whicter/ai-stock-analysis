@@ -8,6 +8,14 @@ interface TechnicalPointsProps {
     resistance: { level: number; label: string };
     support: { level: number; label: string };
     momentum: { value: number; label: string };
+    fibonacci?: {
+      type: 'extension' | 'retracement';
+      levels: {
+        level: number;
+        price: number;
+        label: string;
+      }[];
+    };
   };
 }
 
@@ -101,6 +109,26 @@ const TechnicalPoints: React.FC<TechnicalPointsProps> = ({ points }) => {
           </div>
         </div>
       </div>
+
+      {points.fibonacci && (
+        <div className="fibonacci-section">
+          <div className="fibonacci-header">
+            <div className="fibonacci-title">
+              {points.fibonacci.type === 'extension' ? '📈 Fibonacci扩展位 (多头趋势)' : '📉 Fibonacci回撤位 (空头趋势)'}
+            </div>
+          </div>
+          <div className="fibonacci-levels">
+            {points.fibonacci.levels.filter(level => level.level > 0).map((level, index) => (
+              <div key={index} className="fib-level-item">
+                <span className="fib-level-label">{level.label}:</span>
+                <span className="fib-level-price" style={{ color: '#FFD700' }}>
+                  ${level.price.toFixed(2)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="info-badge">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">

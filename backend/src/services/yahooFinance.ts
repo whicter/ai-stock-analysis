@@ -108,39 +108,39 @@ export async function getYahooFundamentalData(symbol: string): Promise<Fundament
 
     return {
       // 估值指标
-      marketCap: price?.marketCap,
-      peRatio: summaryDetail?.trailingPE,
-      forwardPE: summaryDetail?.forwardPE,
-      pegRatio: keyStats?.pegRatio,
-      priceToBook: keyStats?.priceToBook,
-      priceToSales: price?.priceToSalesTrailing12Months,
-      dividendYield: summaryDetail?.dividendYield ? summaryDetail.dividendYield * 100 : undefined,
+      marketCap: price?.marketCap as number | undefined,
+      peRatio: summaryDetail?.trailingPE as number | undefined,
+      forwardPE: summaryDetail?.forwardPE as number | undefined,
+      pegRatio: keyStats?.pegRatio as number | undefined,
+      priceToBook: keyStats?.priceToBook as number | undefined,
+      priceToSales: price?.priceToSalesTrailing12Months as number | undefined,
+      dividendYield: summaryDetail?.dividendYield ? (summaryDetail.dividendYield as number) * 100 : undefined,
 
       // 盈利能力
-      earningsPerShare: keyStats?.trailingEps,
-      revenue: financialData?.totalRevenue,
-      profitMargin: financialData?.profitMargins ? financialData.profitMargins * 100 : undefined,
-      operatingMargin: financialData?.operatingMargins ? financialData.operatingMargins * 100 : undefined,
+      earningsPerShare: keyStats?.trailingEps as number | undefined,
+      revenue: financialData?.totalRevenue as number | undefined,
+      profitMargin: financialData?.profitMargins ? (financialData.profitMargins as number) * 100 : undefined,
+      operatingMargin: financialData?.operatingMargins ? (financialData.operatingMargins as number) * 100 : undefined,
 
       // 财务健康
-      returnOnEquity: financialData?.returnOnEquity ? financialData.returnOnEquity * 100 : undefined,
-      debtToEquity: financialData?.debtToEquity,
-      currentRatio: financialData?.currentRatio,
+      returnOnEquity: financialData?.returnOnEquity ? (financialData.returnOnEquity as number) * 100 : undefined,
+      debtToEquity: financialData?.debtToEquity as number | undefined,
+      currentRatio: financialData?.currentRatio as number | undefined,
 
       // 公司信息
-      industry: profile?.industry,
-      sector: profile?.sector,
-      fullTimeEmployees: profile?.fullTimeEmployees,
+      industry: profile?.industry as string | undefined,
+      sector: profile?.sector as string | undefined,
+      fullTimeEmployees: profile?.fullTimeEmployees as number | undefined,
 
       // 市场数据
-      beta: keyStats?.beta,
-      fiftyTwoWeekHigh: summaryDetail?.fiftyTwoWeekHigh,
-      fiftyTwoWeekLow: summaryDetail?.fiftyTwoWeekLow,
-      averageVolume: summaryDetail?.averageVolume,
+      beta: keyStats?.beta as number | undefined,
+      fiftyTwoWeekHigh: summaryDetail?.fiftyTwoWeekHigh as number | undefined,
+      fiftyTwoWeekLow: summaryDetail?.fiftyTwoWeekLow as number | undefined,
+      averageVolume: summaryDetail?.averageVolume as number | undefined,
 
       // 分析师预期
-      targetMeanPrice: financialData?.targetMeanPrice,
-      recommendationKey: financialData?.recommendationKey,
+      targetMeanPrice: financialData?.targetMeanPrice as number | undefined,
+      recommendationKey: financialData?.recommendationKey as string | undefined,
     };
   } catch (error) {
     console.error('Error fetching Yahoo Finance fundamental data:', error);

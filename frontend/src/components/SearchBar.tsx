@@ -50,6 +50,16 @@ const SearchBar: React.FC<SearchBarProps> = ({ onAnalyze, loading }) => {
             </button>
             <button
               type="button"
+              className={`data-source-btn ${dataSource === 'fmp' ? 'active' : ''}`}
+              onClick={() => setDataSource('fmp')}
+              disabled={loading}
+            >
+              <span className="data-source-icon">💼</span>
+              <span className="data-source-name">FMP</span>
+              <span className="data-source-tag">250次/天</span>
+            </button>
+            <button
+              type="button"
               className={`data-source-btn ${dataSource === 'alpha-vantage' ? 'active' : ''}`}
               onClick={() => setDataSource('alpha-vantage')}
               disabled={loading}
