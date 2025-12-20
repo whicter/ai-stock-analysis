@@ -39,23 +39,53 @@ export async function analyzeStock(symbol: string, provider?: string, dataSource
     }
 
     // Pre-calculate sentiment to determine Fibonacci levels
-    // Using simple technical indicators for initial sentiment determination
+    // Using professional technical analysis for trend determination
     const currentPrice = quote.price;
     const rsi = indicators.rsi.filter(v => !isNaN(v)).slice(-1)[0] || 50;
     const latestMACD = indicators.macd.macd.filter(v => !isNaN(v)).slice(-1)[0] || 0;
+    const macdSignal = indicators.macd.signal.filter(v => !isNaN(v)).slice(-1)[0] || 0;
     const sma20 = indicators.sma20.filter(v => !isNaN(v)).slice(-1)[0] || currentPrice;
     const sma50 = indicators.sma50.filter(v => !isNaN(v)).slice(-1)[0] || currentPrice;
+    const sma200 = indicators.sma200.filter(v => !isNaN(v)).slice(-1)[0] || currentPrice;
 
+    // Calculate trend score
+    let trendScore = 0;
+
+    // Price position relative to moving averages (40% weight)
+    if (currentPrice > sma20) trendScore += 1;
+    if (currentPrice > sma50) trendScore += 1.5;
+    if (currentPrice > sma200) trendScore += 1;
+    if (currentPrice < sma20) trendScore -= 1;
+    if (currentPrice < sma50) trendScore -= 1.5;
+    if (currentPrice < sma200) trendScore -= 1;
+
+    // Moving average alignment - Golden/Death Cross (30% weight)
+    if (sma20 > sma50) trendScore += 1.5;
+    if (sma20 < sma50) trendScore -= 1.5;
+    if (sma50 > sma200) trendScore += 0.5;
+    if (sma50 < sma200) trendScore -= 0.5;
+
+    // MACD momentum (20% weight)
+    if (latestMACD > 0 && latestMACD > macdSignal) trendScore += 1;
+    if (latestMACD < 0 && latestMACD < macdSignal) trendScore -= 1;
+
+    // RSI confirmation (10% weight) - but not dominant
+    if (rsi > 50 && rsi < 70) trendScore += 0.5; // Healthy bullish
+    if (rsi < 50 && rsi > 30) trendScore -= 0.5; // Healthy bearish
+    if (rsi > 70) trendScore += 0.2; // Overbought but still bullish
+    if (rsi < 30) trendScore -= 0.2; // Oversold but still bearish
+
+    // Determine sentiment based on score
     let preliminarySentiment: 'bullish' | 'bearish' | 'neutral' = 'neutral';
-    if (rsi > 70 || currentPrice < sma20 * 0.95) {
-      preliminarySentiment = 'bearish';
-    } else if (rsi < 30 || currentPrice > sma20 * 1.05) {
+    if (trendScore >= 2.5) {
       preliminarySentiment = 'bullish';
-    } else if (currentPrice > sma20 && currentPrice > sma50 && latestMACD > 0) {
-      preliminarySentiment = 'bullish';
-    } else if (currentPrice < sma20 && currentPrice < sma50 && latestMACD < 0) {
+    } else if (trendScore <= -2.5) {
       preliminarySentiment = 'bearish';
+    } else {
+      preliminarySentiment = 'neutral';
     }
+
+    console.log(`Trend Score: ${trendScore.toFixed(2)} → ${preliminarySentiment.toUpperCase()} trend`);
 
     // Add Fibonacci levels based on preliminary sentiment
     const fibLevels = calculateFibonacciLevels(timeSeries, preliminarySentiment);
