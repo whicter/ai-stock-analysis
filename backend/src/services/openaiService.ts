@@ -314,31 +314,39 @@ function parseAnalysisText(text: string): {
   fundamentalAnalysis: string;
   riskWarning: string;
 } {
-  const sections = {
-    coreView: '',
-    technicalAnalysis: '',
-    fundamentalAnalysis: '',
-    riskWarning: '',
+  // Find section headers - look for "2. **技术" pattern, not just "2."
+  const lines = text.split('\n');
+  let tech2Pos = -1;
+  let fund3Pos = -1;
+  let risk4Pos = -1;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (/^2\.\s*\*\*?技术/i.test(line)) {
+      tech2Pos = text.indexOf(lines[i]);
+    } else if (/^3\.\s*\*\*?基本面/i.test(line)) {
+      fund3Pos = text.indexOf(lines[i]);
+    } else if (/^4\.\s*\*\*?风险/i.test(line)) {
+      risk4Pos = text.indexOf(lines[i]);
+    }
+  }
+
+  // Extract sections
+  const coreView = tech2Pos >= 0 ? text.substring(0, tech2Pos).trim() : text.trim();
+  const technicalAnalysis = tech2Pos >= 0 && fund3Pos > tech2Pos ? text.substring(tech2Pos, fund3Pos).trim() : '';
+  const fundamentalAnalysis = fund3Pos >= 0 && risk4Pos > fund3Pos ? text.substring(fund3Pos, risk4Pos).trim() : '';
+  const riskWarning = risk4Pos >= 0 ? text.substring(risk4Pos).trim() : '';
+
+  // Remove section headers
+  const cleanCoreView = coreView.replace(/1\.\s*\*\*?核心观点\*\*?[：:\s]*\n?/i, '').trim();
+  const cleanTechnical = technicalAnalysis.replace(/2\.\s*\*\*?技术.*?分析\*\*?[：:\s]*\n?/i, '').trim();
+  const cleanFundamental = fundamentalAnalysis.replace(/3\.\s*\*\*?基本面.*?分析\*\*?[：:\s]*\n?/i, '').trim();
+  const cleanRisk = riskWarning.replace(/4\.\s*\*\*?风险.*?提示\*\*?[：:\s]*\n?/i, '').trim();
+
+  return {
+    coreView: cleanCoreView || '分析数据处理中...',
+    technicalAnalysis: cleanTechnical || '技术指标分析中...',
+    fundamentalAnalysis: cleanFundamental || '基本面分析中...',
+    riskWarning: cleanRisk || '风险评估中...',
   };
-
-  // Match multiple formats with whitespace flexibility
-  // Require the section headers to be at start of line or after heading markers
-  const coreViewMatch = text.match(/(?:^|\n)(?:###?\s*)?(?:1\.\s*)?核心观点[：:\s]*\n?([\s\S]*?)(?=\n\s*(?:###?\s*)?(?:2\.\s*)?技术(?:指标)?分析|$)/i);
-  const technicalMatch = text.match(/(?:^|\n)(?:###?\s*)?(?:2\.\s*)?技术(?:指标)?分析[：:\s]*\n?([\s\S]*?)(?=\n\s*(?:###?\s*)?(?:3\.\s*)?基本面分析|$)/i);
-  const fundamentalMatch = text.match(/(?:^|\n)(?:###?\s*)?(?:3\.\s*)?基本面分析[：:\s]*\n?([\s\S]*?)(?=\n\s*(?:###?\s*)?(?:4\.\s*)?风险提示|$)/i);
-  const riskMatch = text.match(/(?:^|\n)(?:###?\s*)?(?:4\.\s*)?风险提示[：:\s]*\n?([\s\S]*?)$/i);
-
-  sections.coreView = coreViewMatch ? coreViewMatch[1].trim() : '分析数据处理中...';
-  sections.technicalAnalysis = technicalMatch ? technicalMatch[1].trim() : '技术指标分析中...';
-  sections.fundamentalAnalysis = fundamentalMatch ? fundamentalMatch[1].trim() : '基本面分析中...';
-  sections.riskWarning = riskMatch ? riskMatch[1].trim() : '风险评估中...';
-
-  console.log('Parsed sections lengths:', {
-    coreView: sections.coreView.length,
-    technical: sections.technicalAnalysis.length,
-    fundamental: sections.fundamentalAnalysis.length,
-    risk: sections.riskWarning.length,
-  });
-
-  return sections;
 }
