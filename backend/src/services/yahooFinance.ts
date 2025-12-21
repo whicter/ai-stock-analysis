@@ -27,6 +27,8 @@ export interface FundamentalData {
   averageVolume?: number;
   targetMeanPrice?: number;
   recommendationKey?: string;
+  operatingCashFlow?: number;
+  freeCashFlow?: number;
 }
 
 export async function getYahooStockQuote(symbol: string): Promise<StockQuote> {
@@ -59,45 +61,75 @@ export async function getYahooStockQuote(symbol: string): Promise<StockQuote> {
   }
 }
 
-export async function getYahooStockTimeSeries(symbol: string): Promise<StockTimeSeries[]> {
+export async function getYahooStockTimeSeriesMultiTF(
+  symbol: string,
+  interval: '1h' | '4h' | '1d' | '1wk' = '1d',
+  daysBack: number = 150
+): Promise<StockTimeSeries[]> {
   try {
-    // Get historical data for the last 100 days
     const endDate = new Date();
     const startDate = new Date();
-    startDate.setDate(startDate.getDate() - 150); // Get extra days to ensure we have 100 trading days
+    startDate.setDate(startDate.getDate() - daysBack);
+
+    // Yahoo Finance doesn't support 4h, so we use 1h and aggregate later
+    const yahooInterval = interval === '4h' ? '1h' : interval;
 
     const history = await yahooFinance.chart(symbol, {
       period1: startDate,
       period2: endDate,
-      interval: '1d',
+      interval: yahooInterval as '1h' | '1d' | '1wk',
     });
 
     if (!history || !history.quotes || history.quotes.length === 0) {
       throw new Error('无法获取历史数据');
     }
 
-    // Convert to our format (v3 uses quotes array)
-    const timeSeries: StockTimeSeries[] = history.quotes.map((day: any) => ({
-      date: new Date(day.date).toISOString().split('T')[0],
-      open: day.open || 0,
-      high: day.high || 0,
-      low: day.low || 0,
-      close: day.close || 0,
-      volume: day.volume || 0,
-    })).filter((day: StockTimeSeries) => day.close > 0); // Filter out invalid data
+    // Convert to our format
+    let timeSeries: StockTimeSeries[] = history.quotes
+      .filter((q: any) => q.open && q.high && q.low && q.close)
+      .map((q: any) => ({
+        date: new Date(q.date).toISOString(),
+        open: q.open,
+        high: q.high,
+        low: q.low,
+        close: q.close,
+        volume: q.volume || 0,
+      }));
 
-    // Sort by date ascending
-    return timeSeries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    // If 4h interval, aggregate 4 hourly candles into one
+    if (interval === '4h') {
+      const aggregated: StockTimeSeries[] = [];
+      for (let i = 0; i < timeSeries.length; i += 4) {
+        const chunk = timeSeries.slice(i, i + 4);
+        if (chunk.length > 0) {
+          aggregated.push({
+            date: chunk[chunk.length - 1].date,
+            open: chunk[0].open,
+            high: Math.max(...chunk.map(c => c.high)),
+            low: Math.min(...chunk.map(c => c.low)),
+            close: chunk[chunk.length - 1].close,
+            volume: chunk.reduce((sum, c) => sum + c.volume, 0),
+          });
+        }
+      }
+      timeSeries = aggregated;
+    }
+
+    return timeSeries;
   } catch (error) {
-    console.error('Error fetching Yahoo Finance historical data:', error);
-    throw new Error('无法从 Yahoo Finance 获取历史数据');
+    console.error(`Error fetching Yahoo Finance ${interval} data:`, error);
+    throw new Error(`无法从 Yahoo Finance 获取${interval}数据`);
   }
+}
+
+export async function getYahooStockTimeSeries(symbol: string): Promise<StockTimeSeries[]> {
+  return getYahooStockTimeSeriesMultiTF(symbol, '1d', 150);
 }
 
 export async function getYahooFundamentalData(symbol: string): Promise<FundamentalData> {
   try {
     const quote = await yahooFinance.quoteSummary(symbol, {
-      modules: ['summaryDetail', 'defaultKeyStatistics', 'financialData', 'price', 'summaryProfile']
+      modules: ['summaryDetail', 'defaultKeyStatistics', 'financialData', 'price', 'summaryProfile', 'cashflowStatementHistory']
     });
 
     const summaryDetail = quote.summaryDetail;
@@ -105,6 +137,7 @@ export async function getYahooFundamentalData(symbol: string): Promise<Fundament
     const financialData = quote.financialData;
     const price = quote.price;
     const profile = quote.summaryProfile;
+    const cashflow = quote.cashflowStatementHistory?.cashflowStatements?.[0];
 
     return {
       // 估值指标
@@ -141,6 +174,10 @@ export async function getYahooFundamentalData(symbol: string): Promise<Fundament
       // 分析师预期
       targetMeanPrice: financialData?.targetMeanPrice as number | undefined,
       recommendationKey: financialData?.recommendationKey as string | undefined,
+
+      // 现金流
+      operatingCashFlow: (cashflow as any)?.totalCashFromOperatingActivities as number | undefined,
+      freeCashFlow: financialData?.freeCashflow as number | undefined,
     };
   } catch (error) {
     console.error('Error fetching Yahoo Finance fundamental data:', error);

@@ -101,26 +101,51 @@ export async function getStockQuote(symbol: string): Promise<StockQuote> {
   }
 }
 
-export async function getStockTimeSeries(symbol: string, period: 'daily' | 'weekly' = 'daily'): Promise<StockTimeSeries[]> {
+export async function getStockTimeSeriesMultiTF(
+  symbol: string,
+  interval: '1h' | '4h' | '1d' | '1wk' = '1d',
+  daysBack: number = 150
+): Promise<StockTimeSeries[]> {
   try {
     const apiKey = getApiKey();
 
-    const response = await axios.get(BASE_URL, {
-      params: {
-        function: period === 'daily' ? 'TIME_SERIES_DAILY' : 'TIME_SERIES_WEEKLY',
-        symbol,
-        apikey: apiKey,
-        outputsize: 'compact', // last 100 data points
-      },
-    });
+    // Map our intervals to Alpha Vantage functions
+    let functionName: string;
+    let intervalParam: string | undefined;
+    let timeSeriesKey: string;
 
-    console.log('Alpha Vantage Time Series Response keys:', Object.keys(response.data));
+    if (interval === '1h') {
+      functionName = 'TIME_SERIES_INTRADAY';
+      intervalParam = '60min';
+      timeSeriesKey = 'Time Series (60min)';
+    } else if (interval === '4h') {
+      functionName = 'TIME_SERIES_INTRADAY';
+      intervalParam = '60min'; // Will need to aggregate 4 hourly candles
+      timeSeriesKey = 'Time Series (60min)';
+    } else if (interval === '1wk') {
+      functionName = 'TIME_SERIES_WEEKLY';
+      timeSeriesKey = 'Weekly Time Series';
+    } else { // '1d'
+      functionName = 'TIME_SERIES_DAILY';
+      timeSeriesKey = 'Time Series (Daily)';
+    }
 
-    const timeSeriesKey = period === 'daily' ? 'Time Series (Daily)' : 'Weekly Time Series';
+    const params: any = {
+      function: functionName,
+      symbol,
+      apikey: apiKey,
+      outputsize: 'full',
+    };
+
+    if (intervalParam) {
+      params.interval = intervalParam;
+    }
+
+    const response = await axios.get(BASE_URL, { params });
+
     const timeSeries = response.data[timeSeriesKey];
 
     if (!timeSeries) {
-      // Check if there's an error message or rate limit info
       if (response.data['Note']) {
         throw new Error(`Alpha Vantage API限制: ${response.data['Note']}`);
       }
@@ -130,7 +155,7 @@ export async function getStockTimeSeries(symbol: string, period: 'daily' | 'week
       throw new Error('无法获取时间序列数据');
     }
 
-    const data: StockTimeSeries[] = [];
+    let data: StockTimeSeries[] = [];
     for (const [date, values] of Object.entries(timeSeries)) {
       data.push({
         date,
@@ -142,11 +167,42 @@ export async function getStockTimeSeries(symbol: string, period: 'daily' | 'week
       });
     }
 
-    return data.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    // Sort by date
+    data = data.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    // If 4h interval, aggregate 4 hourly candles into one
+    if (interval === '4h') {
+      const aggregated: StockTimeSeries[] = [];
+      for (let i = 0; i < data.length; i += 4) {
+        const chunk = data.slice(i, i + 4);
+        if (chunk.length > 0) {
+          aggregated.push({
+            date: chunk[chunk.length - 1].date,
+            open: chunk[0].open,
+            high: Math.max(...chunk.map(c => c.high)),
+            low: Math.min(...chunk.map(c => c.low)),
+            close: chunk[chunk.length - 1].close,
+            volume: chunk.reduce((sum, c) => sum + c.volume, 0),
+          });
+        }
+      }
+      data = aggregated;
+    }
+
+    // Limit to requested days back
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - daysBack);
+    data = data.filter(d => new Date(d.date) >= cutoffDate);
+
+    return data;
   } catch (error) {
-    console.error('Error fetching time series:', error);
-    throw error;
+    console.error(`Error fetching Alpha Vantage ${interval} data:`, error);
+    throw new Error(`无法从 Alpha Vantage 获取${interval}数据`);
   }
+}
+
+export async function getStockTimeSeries(symbol: string, period: 'daily' | 'weekly' = 'daily'): Promise<StockTimeSeries[]> {
+  return getStockTimeSeriesMultiTF(symbol, period === 'weekly' ? '1wk' : '1d', 150);
 }
 
 export async function getTechnicalIndicators(symbol: string): Promise<Partial<TechnicalIndicators>> {

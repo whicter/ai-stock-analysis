@@ -138,6 +138,13 @@
   margin-top: 0;
 }
 
+/* Subheading bullet point (bullet with **text**: format) */
+.report-subheading-bullet {
+  font-weight: 700;
+  color: #60A5FA;
+  margin: 0.75rem 0 0.5rem 0;
+}
+
 /* Section subtitle styling (lines ending with : or ：) */
 .report-section-subtitle {
   font-weight: 600;

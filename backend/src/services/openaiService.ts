@@ -1,7 +1,8 @@
 import OpenAI from 'openai';
 import { StockQuote, StockTimeSeries, TechnicalIndicators } from './alphaVantage';
 import { AnalysisResult } from './claudeService';
-import { FundamentalData } from './yahooFinance';
+import { FundamentalData, getYahooStockTimeSeriesMultiTF } from './yahooFinance';
+import { analyzeCandlestickPatterns, formatPatternsForPrompt, TimeframePatterns } from './candlestickPatterns';
 
 let client: OpenAI | null = null;
 
@@ -31,6 +32,31 @@ export async function generateStockAnalysisWithOpenAI(
   const latestMACD = indicators.macd.macd.filter(v => !isNaN(v)).slice(-1)[0] || 0;
   const sma20 = indicators.sma20.filter(v => !isNaN(v)).slice(-1)[0] || currentPrice;
   const sma50 = indicators.sma50.filter(v => !isNaN(v)).slice(-1)[0] || currentPrice;
+
+  // Fetch multi-timeframe data and analyze candlestick patterns
+  console.log('Analyzing candlestick patterns across multiple timeframes...');
+  let candlestickSection = '';
+  try {
+    const [data1H, data4H, data1D, data1W] = await Promise.all([
+      getYahooStockTimeSeriesMultiTF(symbol, '1h', 30).catch(() => null),
+      getYahooStockTimeSeriesMultiTF(symbol, '4h', 60).catch(() => null),
+      getYahooStockTimeSeriesMultiTF(symbol, '1d', 150).catch(() => null),
+      getYahooStockTimeSeriesMultiTF(symbol, '1wk', 200).catch(() => null),
+    ]);
+
+    const timeframePatterns: TimeframePatterns[] = [];
+    if (data1H && data1H.length > 20) timeframePatterns.push(analyzeCandlestickPatterns(data1H, '1H'));
+    if (data4H && data4H.length > 20) timeframePatterns.push(analyzeCandlestickPatterns(data4H, '4H'));
+    if (data1D && data1D.length > 20) timeframePatterns.push(analyzeCandlestickPatterns(data1D, '1D'));
+    if (data1W && data1W.length > 20) timeframePatterns.push(analyzeCandlestickPatterns(data1W, '1W'));
+
+    if (timeframePatterns.length > 0) {
+      candlestickSection = formatPatternsForPrompt(timeframePatterns);
+    }
+  } catch (error) {
+    console.error('Error analyzing candlestick patterns:', error);
+    candlestickSection = '\n===== K线形态分析 =====\n暂时无法获取K线形态数据\n';
+  }
 
   // Build fundamental data section
   let fundamentalSection = '';
@@ -71,6 +97,10 @@ ${indicators.fibonacci.levels.map(l => `- ${l.label}: $${l.price.toFixed(2)}`).j
 `;
   }
 
+  // Get SMA200 for complete analysis
+  const sma200 = indicators.sma200.filter(v => !isNaN(v)).slice(-1)[0] || currentPrice;
+  const macdSignal = indicators.macd.signal.filter(v => !isNaN(v)).slice(-1)[0] || 0;
+
   const prompt = `你是一位资深的股票分析师，拥有20年以上的市场经验。请基于以下数据对股票 ${symbol} 进行深度、全面的专业分析：
 
 ===== 实时行情数据 =====
@@ -87,21 +117,31 @@ ${indicators.fibonacci.levels.map(l => `- ${l.label}: $${l.price.toFixed(2)}`).j
 动量指标:
 - RSI(14): ${rsi.toFixed(2)} ${rsi > 70 ? '(超买区域)' : rsi < 30 ? '(超卖区域)' : '(中性区域)'}
 - MACD: ${latestMACD.toFixed(2)} ${latestMACD > 0 ? '(正值，看涨)' : '(负值，看跌)'}
+- MACD信号线: ${macdSignal.toFixed(2)} ${latestMACD > macdSignal ? '(MACD在信号线上方，看涨)' : '(MACD在信号线下方，看跌)'}
 
 均线系统:
 - SMA20日均线: $${sma20.toFixed(2)} ${currentPrice > sma20 ? '(价格在均线上方)' : '(价格在均线下方)'}
 - SMA50日均线: $${sma50.toFixed(2)} ${currentPrice > sma50 ? '(价格在均线上方)' : '(价格在均线下方)'}
+- SMA200日均线: $${sma200.toFixed(2)} ${currentPrice > sma200 ? '(价格在均线上方)' : '(价格在均线下方)'}
+- 均线排列: ${sma20 > sma50 ? '金叉状态(SMA20>SMA50)' : '死叉状态(SMA20<SMA50)'}, ${sma50 > sma200 ? 'SMA50>SMA200' : 'SMA50<SMA200'}
 
 布林带:
 - 上轨: $${(indicators.bollingerBands.upper.filter(v => !isNaN(v)).slice(-1)[0] || currentPrice).toFixed(2)}
 - 中轨: $${(indicators.bollingerBands.middle.filter(v => !isNaN(v)).slice(-1)[0] || currentPrice).toFixed(2)}
 - 下轨: $${(indicators.bollingerBands.lower.filter(v => !isNaN(v)).slice(-1)[0] || currentPrice).toFixed(2)}
-${fibonacciSection}${fundamentalSection}
+${fibonacciSection}${candlestickSection}${fundamentalSection}
 ===== 近期价格走势 =====
 ${recentData.slice(-10).map(d => `${d.date}: 收盘$${d.close.toFixed(2)}, 最高$${d.high.toFixed(2)}, 最低$${d.low.toFixed(2)}, 成交量${d.volume.toLocaleString()}`).join('\n')}
 
 ===== 分析要求 =====
 请提供以下格式的深度分析报告（用中文，要求详细、专业、具体）:
+
+**重要：在开始分析前，请先基于上述技术指标综合判断当前的市场趋势**
+- 考虑价格与均线的位置关系
+- 考虑均线系统的排列（金叉/死叉）
+- 考虑MACD的方向和位置
+- 考虑RSI的区域（但不要让RSI主导判断）
+- 给出明确的趋势判断：多头趋势/空头趋势/震荡趋势
 
 1. 核心观点
    - 提供3-5个核心投资观点
@@ -111,20 +151,53 @@ ${recentData.slice(-10).map(d => `${d.date}: 收盘$${d.close.toFixed(2)}, 最�
 
 2. 技术指标分析
    - 深度分析RSI、MACD、均线系统、布林带的当前状态及趋势
+   - **K线形态分析**：结合上述提供的多时间级别（1H/4H/1D/1W）K线形态，分析：
+     * 已确认形态的可靠性和预期影响
+     * 可能正在形成的形态及确认条件
+     * 不同时间级别形态的共振或背离
+     * 形态对短期和中长期走势的指示意义
    - 识别并说明关键的支撑位和阻力位（至少3-5个价格点位）
    - 分析成交量变化及其对价格的影响
-   - 识别技术形态（如头肩顶、双底、三角形等）
    - 如果有Fibonacci点位，详细说明每个关键点位的意义及交易策略
    - 给出具体的入场点、止损点、止盈点建议
 
 3. 基本面分析
-   - 深入评估公司估值水平（与行业平均对比，说明是高估还是低估及程度）
-   - 详细分析盈利能力（利润率趋势、与竞争对手对比）
-   - 评估财务健康度（债务水平、现金流状况、偿债能力）
-   - 分析公司在行业中的竞争地位和护城河
-   - 评估增长潜力（营收增长、市场份额、新产品/服务）
-   - 说明股息情况及其可持续性（如适用）
-   - 综合评分（1-10分）并解释评分理由
+   - **公司业务与行业地位**：
+     * 基于行业分类${fundamentals.sector ? fundamentals.sector : 'N/A'}/${fundamentals.industry ? fundamentals.industry : 'N/A'}，简要说明公司主营业务和商业模式
+     * 分析公司在行业中的市场地位、市场份额、竞争优势
+     * 识别主要竞争对手，说明公司与竞争对手的差异化优势
+   - **关键财务指标深度解读**：
+     * 详细分析市盈率(P/E)${fundamentals.peRatio ? fundamentals.peRatio.toFixed(2) : 'N/A'}、预期市盈率(Forward P/E)${fundamentals.forwardPE ? fundamentals.forwardPE.toFixed(2) : 'N/A'}、市净率(P/B)${fundamentals.priceToBook ? fundamentals.priceToBook.toFixed(2) : 'N/A'}、PEG比率${fundamentals.pegRatio ? fundamentals.pegRatio.toFixed(2) : 'N/A'}的含义
+     * 深入解释这些估值指标在当前行业环境下是否合理
+     * 对比当前P/E和Forward P/E，分析市场对未来增长的预期
+     * 将估值指标与行业平均水平、历史水平、主要竞争对手进行详细对比
+     * 说明估值是高估还是低估，高估/低估的程度及原因
+   - **盈利能力全面分析**：
+     * 净利润率${fundamentals.profitMargin ? fundamentals.profitMargin.toFixed(2) + '%' : 'N/A'}、营业利润率${fundamentals.operatingMargin ? fundamentals.operatingMargin.toFixed(2) + '%' : 'N/A'}、ROE${fundamentals.returnOnEquity ? fundamentals.returnOnEquity.toFixed(2) + '%' : 'N/A'}的深度解读
+     * **关键**：判断这些盈利指标是在改善还是恶化，分析背后的原因（成本控制、定价权、规模效应等）
+     * 分析盈利质量：是否依赖一次性收益、利润的可持续性如何
+     * 与行业标杆企业进行对比，说明公司盈利能力的相对位置
+     * EPS${fundamentals.earningsPerShare ? '$' + fundamentals.earningsPerShare.toFixed(2) : 'N/A'}的增长趋势和可持续性分析
+   - **财务健康度详细评估**：
+     * 负债权益比${fundamentals.debtToEquity ? fundamentals.debtToEquity.toFixed(2) : 'N/A'}、流动比率${fundamentals.currentRatio ? fundamentals.currentRatio.toFixed(2) : 'N/A'}反映的财务风险
+     * 债务结构是否健康，偿债能力是否充足
+     * **现金流分析**：经营活动现金流${fundamentals.operatingCashFlow ? '$' + (fundamentals.operatingCashFlow / 1e9).toFixed(2) + 'B' : 'N/A'}、自由现金流${fundamentals.freeCashFlow ? '$' + (fundamentals.freeCashFlow / 1e9).toFixed(2) + 'B' : 'N/A'}
+     * 详细分析现金流的充裕程度、现金流与净利润的匹配度、现金创造能力
+     * 评估现金流对业务扩张、研发投入、股息支付的支持能力
+     * Beta系数${fundamentals.beta ? fundamentals.beta.toFixed(2) : 'N/A'}反映的系统性风险
+   - **成长性与竞争力**：
+     * 营收规模${fundamentals.revenue ? '$' + (fundamentals.revenue / 1e9).toFixed(2) + 'B' : 'N/A'}、市值${fundamentals.marketCap ? '$' + (fundamentals.marketCap / 1e9).toFixed(2) + 'B' : 'N/A'}在行业中的地位
+     * 分析公司的核心竞争优势和护城河（品牌、技术、规模、网络效应、转换成本等）
+     * **未来增长驱动因素**：详细分析哪些因素会驱动未来增长（新产品、市场扩张、技术创新等）
+     * **增长风险**：识别可能阻碍增长的因素（市场饱和、监管变化、技术颠覆等）
+     * 分析师目标价${fundamentals.targetMeanPrice ? '$' + fundamentals.targetMeanPrice.toFixed(2) : 'N/A'}${fundamentals.recommendationKey ? '、评级' + fundamentals.recommendationKey : ''}的参考意义及合理性
+   - **股息与股东回报**：
+     * 股息率${fundamentals.dividendYield ? fundamentals.dividendYield.toFixed(2) + '%' : '无'}的吸引力和可持续性
+     * 分析公司的资本配置策略（分红vs再投资），评估管理层对股东回报的重视程度
+   - **投资结论总结**：
+     * **看涨因素（Bullish）**：列出3-5个支持投资的核心优势（基于上述分析）
+     * **看跌因素（Bearish）**：列出3-5个投资风险点（基于上述分析）
+     * **综合评分**：给出1-10分的评分，并详细解释评分理由
 
 4. 风险提示
    - 列出5-8个主要风险点
@@ -248,13 +321,12 @@ function parseAnalysisText(text: string): {
     riskWarning: '',
   };
 
-  // Match multiple formats with whitespace flexibility:
-  // "### 1. 核心观点", "1. 核心观点", or "### 核心观点"
-  // Added \s* before lookahead to handle newlines between sections
-  const coreViewMatch = text.match(/(?:###?\s*)?(?:1\.\s*)?核心观点[：:\s]*([\s\S]*?)(?=\s*(?:###?\s*)?(?:2\.\s*)?技术|$)/i);
-  const technicalMatch = text.match(/(?:###?\s*)?(?:2\.\s*)?技术(?:指标)?分析[：:\s]*([\s\S]*?)(?=\s*(?:###?\s*)?(?:3\.\s*)?基本面|$)/i);
-  const fundamentalMatch = text.match(/(?:###?\s*)?(?:3\.\s*)?基本面分析[：:\s]*([\s\S]*?)(?=\s*(?:###?\s*)?(?:4\.\s*)?风险|$)/i);
-  const riskMatch = text.match(/(?:###?\s*)?(?:4\.\s*)?风险提示[：:\s]*([\s\S]*?)$/i);
+  // Match multiple formats with whitespace flexibility
+  // Require the section headers to be at start of line or after heading markers
+  const coreViewMatch = text.match(/(?:^|\n)(?:###?\s*)?(?:1\.\s*)?核心观点[：:\s]*\n?([\s\S]*?)(?=\n\s*(?:###?\s*)?(?:2\.\s*)?技术(?:指标)?分析|$)/i);
+  const technicalMatch = text.match(/(?:^|\n)(?:###?\s*)?(?:2\.\s*)?技术(?:指标)?分析[：:\s]*\n?([\s\S]*?)(?=\n\s*(?:###?\s*)?(?:3\.\s*)?基本面分析|$)/i);
+  const fundamentalMatch = text.match(/(?:^|\n)(?:###?\s*)?(?:3\.\s*)?基本面分析[：:\s]*\n?([\s\S]*?)(?=\n\s*(?:###?\s*)?(?:4\.\s*)?风险提示|$)/i);
+  const riskMatch = text.match(/(?:^|\n)(?:###?\s*)?(?:4\.\s*)?风险提示[：:\s]*\n?([\s\S]*?)$/i);
 
   sections.coreView = coreViewMatch ? coreViewMatch[1].trim() : '分析数据处理中...';
   sections.technicalAnalysis = technicalMatch ? technicalMatch[1].trim() : '技术指标分析中...';

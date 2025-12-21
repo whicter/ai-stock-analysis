@@ -37,9 +37,14 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({ symbol, report }) => {
       lastIndex = match.index + match[0].length;
     }
 
-    // Add remaining text
+    // Add remaining text, but clean up orphaned ** markers
     if (lastIndex < text.length) {
-      parts.push(text.substring(lastIndex));
+      let remaining = text.substring(lastIndex);
+      // Remove orphaned ** at start or end of remaining text
+      remaining = remaining.replace(/^\*\*\s*$/, '').replace(/^\*\*\s+/, '');
+      if (remaining) {
+        parts.push(remaining);
+      }
     }
 
     return parts.length > 0 ? parts : text;
@@ -53,26 +58,60 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({ symbol, report }) => {
     // Track if we're currently under a subheading
     let underSubheading = false;
 
+    console.log('=== formatText Debug ===');
+    console.log('Total lines:', lines.length);
+
     for (let index = 0; index < lines.length; index++) {
       const trimmedLine = lines[index].trim();
       if (!trimmedLine) continue;
 
+      // Skip lines that are just orphaned ** markers
+      if (trimmedLine === '**' || trimmedLine.match(/^\*\*\s*$/)) {
+        continue;
+      }
+
       // 检测是否是section子标题（以**开头和结尾的，或者包含**的）
       const isSubheading = /^\*\*.*\*\*/.test(trimmedLine);
 
-      // 检测是否是section标题（以"："或":"结尾，但不是bullet point）
-      const isSectionTitle = !trimmedLine.startsWith('-') && !trimmedLine.startsWith('•') &&
+      // 检测是否是section标题（以"：" 或":"结尾，但不是bullet point，也不是**开头的subheading）
+      const isSectionTitle = !trimmedLine.startsWith('-') && !trimmedLine.startsWith('•') && !trimmedLine.startsWith('**') &&
                              (trimmedLine.endsWith('：') || trimmedLine.endsWith(':'));
 
       // Check if it's a bullet point (starts with - or •)
       if (trimmedLine.startsWith('-') || trimmedLine.startsWith('•')) {
         const content = trimmedLine.substring(1).trim();
 
-        elements.push(
-          <li key={index} className={`report-list-item ${underSubheading ? 'indented' : ''}`}>
-            {parseMarkdown(content)}
-          </li>
-        );
+        // Skip empty bullets or bullets with only **
+        if (!content || content === '**' || content.match(/^\*\*\s*$/)) {
+          continue;
+        }
+
+        // Check if this bullet point is a subheading (format: **text** or **text**: or **text**：)
+        const bulletSubheadingMatch = content.match(/^\*\*([^*]+)\*\*([：:]?\s*(.*))?$/);
+
+        if (bulletSubheadingMatch) {
+          // This is a subheading bullet point
+          underSubheading = true;
+          const title = bulletSubheadingMatch[1].trim();
+          const restContent = bulletSubheadingMatch[3] ? bulletSubheadingMatch[3].trim() : '';
+
+          console.log(`[${index}] Bullet subheading:`, title, '| restContent:', restContent, '| underSubheading=', underSubheading);
+
+          elements.push(
+            <li key={index} className="report-list-item report-subheading-bullet">
+              <strong>{title}{restContent ? ':' : ''}</strong> {restContent}
+            </li>
+          );
+        } else {
+          // Regular bullet - indent if we're under a subheading
+          console.log(`[${index}] Regular bullet:`, content.substring(0, 50), '| underSubheading=', underSubheading, '| indented=', underSubheading);
+
+          elements.push(
+            <li key={index} className={`report-list-item ${underSubheading ? 'indented' : ''}`}>
+              {parseMarkdown(content)}
+            </li>
+          );
+        }
       }
       // Check if it's a numbered list
       else if (/^\d+\./.test(trimmedLine)) {
@@ -86,15 +125,19 @@ const AnalysisReport: React.FC<AnalysisReportProps> = ({ symbol, report }) => {
       // Subheading (bold text line)
       else if (isSubheading) {
         underSubheading = true;
+        // Remove ** markers for subheadings since CSS handles the bold styling
+        const cleanedText = trimmedLine.replace(/^\*\*|\*\*$/g, '').trim();
+        console.log(`[${index}] Paragraph subheading:`, cleanedText, '| underSubheading=', underSubheading);
         elements.push(
           <p key={index} className="report-subheading">
-            {parseMarkdown(trimmedLine)}
+            {cleanedText}
           </p>
         );
       }
       // Section title (ends with : or ：)
       else if (isSectionTitle) {
         underSubheading = false; // Reset when we hit a new section title
+        console.log(`[${index}] Section title:`, trimmedLine, '| underSubheading=', underSubheading);
         elements.push(
           <p key={index} className="report-section-subtitle">
             {parseMarkdown(trimmedLine)}
